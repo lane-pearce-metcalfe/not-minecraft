@@ -126,3 +126,8 @@ noiseMap.forEach((row, i) => {
     grassIndex++
   })
 })
+
+//Honestly cant remember why I need to do this I just followed the docs but I think this makes it so that the meshes have been modified and need to be uploaded to the GPU
+stoneInstancedMesh.instanceMatrix.needsUpdate = true
+dirtInstancedMesh.instanceMatrix.needsUpdate = true
+grassInstancedMesh.instanceMatrix.needsUpdate = true
