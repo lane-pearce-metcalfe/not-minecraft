@@ -18,3 +18,7 @@ const renderer = new THREE.WebGLRenderer()
 renderer.setSize(window.innerWidth, window.innerHeight)
 const canvas = renderer.domElement
 document.body.appendChild(canvas)
+
+//Adding OrbitControls
+const controls = new OrbitControls(camera, canvas)
+controls.target.set(0, 3, 0)
