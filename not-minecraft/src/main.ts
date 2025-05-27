@@ -22,3 +22,15 @@ document.body.appendChild(canvas)
 //Adding OrbitControls
 const controls = new OrbitControls(camera, canvas)
 controls.target.set(0, 3, 0)
+
+//Setting up the width/length of the world at this point as it will be needed for the lights
+const dimensions = 128
+
+//Adding lights
+const color = 0xffffff
+const intensity = 10
+const light = new THREE.DirectionalLight(color, intensity)
+const lightPosition = dimensions / 2
+light.position.set(lightPosition, 128, lightPosition)
+light.target.position.set(lightPosition, 0, lightPosition)
+scene.add(light)
