@@ -117,7 +117,7 @@ let grassIndex = 0
 
 noiseMap.forEach((row, i) => {
   row.forEach((cell, j) => {
-    let y = Math.round(cell * 100) - 41
+    let y = Math.round(cell * 100) - 40
     if (y < 1) {
       y = 1
     }
