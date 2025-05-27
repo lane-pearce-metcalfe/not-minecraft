@@ -83,3 +83,25 @@ noiseMap.forEach((row, i) => {
     }
   })
 })
+
+//Creating the dirt in the world
+const dirtInstancedMesh = new THREE.InstancedMesh(
+  geometry,
+  dirt,
+  dimensions * dimensions
+)
+
+const dirtMatrix = new THREE.Matrix4()
+let dirtIndex = 0
+
+noiseMap.forEach((row, i) => {
+  row.forEach((cell, j) => {
+    let y = Math.round(cell * 100) - 41
+    if (y < 1) {
+      y = 1
+    }
+    dirtMatrix.setPosition(j, y, i)
+    dirtInstancedMesh.setMatrixAt(dirtIndex, dirtMatrix)
+    dirtIndex++
+  })
+})
