@@ -34,3 +34,6 @@ const lightPosition = dimensions / 2
 light.position.set(lightPosition, 128, lightPosition)
 light.target.position.set(lightPosition, 0, lightPosition)
 scene.add(light)
+
+//Making the background of the world clear
+renderer.setClearColor(0xfffff, 0)
