@@ -56,3 +56,30 @@ const noiseMap = generateNoiseMap(
   octaves,
   frequency
 )
+
+//Creating a the stone in the worlds mesh
+let totalCubes = 0
+noiseMap.forEach((row) => {
+  row.forEach((cell) => {
+    const height = Math.round(cell * 100) - 42
+    if (height > 0) {
+      totalCubes += height
+    }
+  })
+})
+
+const stoneInstancedMesh = new THREE.InstancedMesh(geometry, stone, totalCubes)
+
+const stoneMatrix = new THREE.Matrix4()
+let stoneIndex = 0
+
+noiseMap.forEach((row, i) => {
+  row.forEach((cell, j) => {
+    const maxHeight = Math.round(cell * 100) - 42
+    for (let y = 1; y <= maxHeight; y++) {
+      stoneMatrix.setPosition(j, y, i)
+      stoneInstancedMesh.setMatrixAt(stoneIndex, stoneMatrix)
+      stoneIndex++
+    }
+  })
+})
