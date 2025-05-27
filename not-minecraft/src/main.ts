@@ -12,3 +12,9 @@ const camera = new THREE.PerspectiveCamera(fov, aspect, near, far)
 
 //Setup scene
 const scene = new THREE.Scene()
+
+//Setup up renderer and canvas
+const renderer = new THREE.WebGLRenderer()
+renderer.setSize(window.innerWidth, window.innerHeight)
+const canvas = renderer.domElement
+document.body.appendChild(canvas)
