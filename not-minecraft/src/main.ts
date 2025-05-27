@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/Addons.js'
+import { generateNoiseMap } from './perlinNoise'
 
 //Camera settings
 const fov = 75
@@ -43,3 +44,15 @@ const geometry = new THREE.BoxGeometry(1, 1, 1)
 const grass = new THREE.MeshBasicMaterial({ color: 'green' })
 const stone = new THREE.MeshBasicMaterial({ color: 'grey' })
 const dirt = new THREE.MeshBasicMaterial({ color: 'rgb(84, 57, 23)' })
+
+//Creating a perlin noise map
+const scale = 0.03
+const octaves = 3
+const frequency = 0.4
+const noiseMap = generateNoiseMap(
+  dimensions,
+  dimensions,
+  scale,
+  octaves,
+  frequency
+)
