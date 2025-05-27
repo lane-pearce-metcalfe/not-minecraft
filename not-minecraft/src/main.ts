@@ -9,3 +9,6 @@ const far = 100
 
 //Creating camera
 const camera = new THREE.PerspectiveCamera(fov, aspect, near, far)
+
+//Setup scene
+const scene = new THREE.Scene()
