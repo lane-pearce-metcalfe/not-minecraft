@@ -105,3 +105,24 @@ noiseMap.forEach((row, i) => {
     dirtIndex++
   })
 })
+
+const grassInstancedMesh = new THREE.InstancedMesh(
+  geometry,
+  grass,
+  dimensions * dimensions
+)
+
+const grassMatrix = new THREE.Matrix4()
+let grassIndex = 0
+
+noiseMap.forEach((row, i) => {
+  row.forEach((cell, j) => {
+    let y = Math.round(cell * 100) - 41
+    if (y < 1) {
+      y = 1
+    }
+    grassMatrix.setPosition(j, y, i)
+    grassInstancedMesh.setMatrixAt(grassIndex, grassMatrix)
+    grassIndex++
+  })
+})
