@@ -134,3 +134,10 @@ grassInstancedMesh.instanceMatrix.needsUpdate = true
 
 //Adding meshes to the scene
 scene.add(stoneInstancedMesh, dirtInstancedMesh, grassInstancedMesh)
+
+//Animating scene
+function animate() {
+  renderer.render(scene, camera)
+}
+
+renderer.setAnimationLoop(animate)
