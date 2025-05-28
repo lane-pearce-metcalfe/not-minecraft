@@ -118,8 +118,8 @@ let grassIndex = 0
 noiseMap.forEach((row, i) => {
   row.forEach((cell, j) => {
     let y = Math.round(cell * 100) - 40
-    if (y < 1) {
-      y = 1
+    if (y < 2) {
+      y = 2
     }
     grassMatrix.setPosition(j, y, i)
     grassInstancedMesh.setMatrixAt(grassIndex, grassMatrix)
