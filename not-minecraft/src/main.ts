@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/Addons.js'
 import { generateNoiseMap } from './perlinNoise'
+import GUI from 'three/examples/jsm/libs/lil-gui.module.min.js'
 
 //Camera settings
 const fov = 75
@@ -25,7 +26,9 @@ const controls = new OrbitControls(camera, canvas)
 controls.target.set(0, 3, 0)
 
 //Setting up the width/length of the world at this point as it will be needed for the lights
-const dimensions = 500
+const dimensions = 200
+
+camera.position.set(dimensions, 200, dimensions / dimensions)
 
 //Adding lights
 const color = 0xffffff
@@ -33,8 +36,11 @@ const intensity = 10
 const light = new THREE.DirectionalLight(color, intensity)
 const lightPosition = dimensions / 2
 light.position.set(lightPosition, 128, lightPosition)
-light.target.position.set(lightPosition, 0, lightPosition)
+light.target.position.set(lightPosition - 40, 0, lightPosition - 40)
 scene.add(light)
+
+const helper = new THREE.DirectionalLightHelper(light)
+scene.add(helper)
 
 //Making the background of the world clear
 renderer.setClearColor(0xfffff, 0)
