@@ -41,9 +41,9 @@ renderer.setClearColor(0xfffff, 0)
 
 //Storing the box geometry in a varaible as well as different messhes for different types of blocks
 const geometry = new THREE.BoxGeometry(1, 1, 1)
-const grass = new THREE.MeshBasicMaterial({ color: 'green' })
-const stone = new THREE.MeshBasicMaterial({ color: 'grey' })
-const dirt = new THREE.MeshBasicMaterial({ color: 'rgb(84, 57, 23)' })
+const grass = new THREE.MeshStandardMaterial({ color: 'green' })
+const stone = new THREE.MeshStandardMaterial({ color: 'grey' })
+const dirt = new THREE.MeshStandardMaterial({ color: 'rgb(84, 57, 23)' })
 
 //Creating a perlin noise map
 const scale = 0.03
