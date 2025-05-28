@@ -6,7 +6,7 @@ import { generateNoiseMap } from './perlinNoise'
 const fov = 75
 const aspect = window.innerWidth / window.innerHeight
 const near = 0.1
-const far = 100
+const far = 1000
 
 //Creating camera
 const camera = new THREE.PerspectiveCamera(fov, aspect, near, far)
@@ -25,7 +25,7 @@ const controls = new OrbitControls(camera, canvas)
 controls.target.set(0, 3, 0)
 
 //Setting up the width/length of the world at this point as it will be needed for the lights
-const dimensions = 128
+const dimensions = 500
 
 //Adding lights
 const color = 0xffffff
