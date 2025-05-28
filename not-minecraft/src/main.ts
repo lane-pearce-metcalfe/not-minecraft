@@ -131,3 +131,6 @@ noiseMap.forEach((row, i) => {
 stoneInstancedMesh.instanceMatrix.needsUpdate = true
 dirtInstancedMesh.instanceMatrix.needsUpdate = true
 grassInstancedMesh.instanceMatrix.needsUpdate = true
+
+//Adding meshes to the scene
+scene.add(stoneInstancedMesh, dirtInstancedMesh, grassInstancedMesh)
