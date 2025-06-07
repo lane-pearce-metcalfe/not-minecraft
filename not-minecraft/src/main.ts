@@ -1,5 +1,4 @@
 import * as THREE from 'three'
-import { OrbitControls } from 'three/examples/jsm/Addons.js'
 import { generateNoiseMap } from './perlinNoise'
 
 //Camera settings
@@ -20,14 +19,270 @@ renderer.setSize(window.innerWidth, window.innerHeight)
 const canvas = renderer.domElement
 document.body.appendChild(canvas)
 
-//Adding OrbitControls
-const controls = new OrbitControls(camera, canvas)
-controls.target.set(0, 3, 0)
-
-//Setting up the width/length of the world at this point as it will be needed for the lights
+//Setting up the width/length of the world
 const dimensions = 200
 
-camera.position.set(dimensions, 200, dimensions / dimensions)
+//Setting up varibales for camera
+const characterHeight = 1.5
+const gravity = -0.05
+const jumpStrength = 0.5
+const maxFallSpeed = -1.5
+const moveSpeed = 0.15
+const mouseSensitivity = 0.002
+let mouseX = 0
+let mouseY = 0
+let pitch = 0
+let yaw = 0
+
+//Character physics state
+let velocity = new THREE.Vector3(0, 0, 0)
+let isOnGround = false
+let canJump = true
+
+//Start character at a safe height
+camera.position.set(dimensions / 2, 50, dimensions / 2)
+
+// First person controls
+const keys = {
+  forward: false,
+  backward: false,
+  left: false,
+  right: false,
+  jump: false,
+}
+
+// Pointer lock for mouse look
+function requestPointerLock() {
+  canvas.requestPointerLock()
+}
+
+function onPointerLockChange() {
+  if (document.pointerLockElement === canvas) {
+    document.addEventListener('mousemove', onMouseMove, false)
+  } else {
+    document.removeEventListener('mousemove', onMouseMove, false)
+  }
+}
+
+function onMouseMove(event: { movementX: number; movementY: number }) {
+  if (document.pointerLockElement === canvas) {
+    mouseX = event.movementX || 0
+    mouseY = event.movementY || 0
+
+    yaw -= mouseX * mouseSensitivity
+    pitch -= mouseY * mouseSensitivity
+
+    //Prevent camera flipping
+    pitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, pitch))
+  }
+}
+
+//Listening for
+function onKeyDown(event: { code: any; preventDefault: () => void }) {
+  if (event.code === 'KeyW') {
+    keys.forward = true
+  }
+  if (event.code === 'KeyS') {
+    keys.backward = true
+  }
+  if (event.code === 'KeyA') {
+    keys.left = true
+  }
+  if (event.code === 'KeyD') {
+    keys.right = true
+  }
+  if (event.code === 'Space') {
+    event.preventDefault()
+    keys.jump = true
+  }
+}
+
+function onKeyUp(event: { code: any }) {
+  if (event.code === 'KeyW') {
+    keys.forward = false
+  }
+  if (event.code === 'KeyS') {
+    keys.backward = false
+  }
+  if (event.code === 'KeyA') {
+    keys.left = false
+  }
+  if (event.code === 'KeyD') {
+    keys.right = false
+  }
+  if (event.code === 'Space') {
+    keys.jump = false
+  }
+}
+
+//Add event listeners
+canvas.addEventListener('click', requestPointerLock, false)
+document.addEventListener('pointerlockchange', onPointerLockChange, false)
+document.addEventListener('keydown', onKeyDown, false)
+document.addEventListener('keyup', onKeyUp, false)
+
+// Check if a voxel exists at given coordinates
+function isVoxelSolid(x: number, y: number, z: number) {
+  if (
+    x < 0 ||
+    x >= dimensions ||
+    y < 0 ||
+    y >= worldHeight ||
+    z < 0 ||
+    z >= dimensions
+  ) {
+    return false // Out of bounds is considered air
+  }
+  return voxelGrid[Math.floor(x)][Math.floor(y)][Math.floor(z)] !== 0
+}
+
+// Get the height of the ground at a given x, z position
+function getGroundHeight(x: number, z: number) {
+  const floorX = Math.floor(x)
+  const floorZ = Math.floor(z)
+
+  // Find the highest solid voxel at this position
+  for (let y = worldHeight - 1; y >= 0; y--) {
+    if (isVoxelSolid(floorX, y, floorZ)) {
+      return y + 1 // Return the position above the solid block
+    }
+  }
+  return 0 // If no solid ground found, return 0
+}
+
+// Check collision with the world
+function checkCollision(position: THREE.Vector3, _checkY = true) {
+  const x = position.x
+  const y = position.y
+  const z = position.z
+
+  // Check feet position (character bottom)
+  const feetY = y - characterHeight
+
+  // Character occupies space from feetY to y
+  // Check multiple points around the character's body
+  const collisionPoints = [
+    { x: x - 0.3, z: z - 0.3 }, // corners
+    { x: x + 0.3, z: z - 0.3 },
+    { x: x - 0.3, z: z + 0.3 },
+    { x: x + 0.3, z: z + 0.3 },
+    { x: x, z: z }, // center
+  ]
+
+  for (const point of collisionPoints) {
+    // Check if any part of the character intersects with solid voxels
+    for (
+      let checkHeight = Math.floor(feetY);
+      checkHeight <= Math.ceil(y);
+      checkHeight++
+    ) {
+      if (isVoxelSolid(point.x, checkHeight, point.z)) {
+        return true
+      }
+    }
+  }
+
+  return false
+}
+
+function updateCamera() {
+  camera.rotation.order = 'YXZ'
+  camera.rotation.y = yaw
+  camera.rotation.x = pitch
+
+  //Calculate movement direction based on camera rotation
+  const direction = new THREE.Vector3()
+  const right = new THREE.Vector3()
+  const horizontalMovement = new THREE.Vector3()
+
+  // Forward/backward movement
+  if (keys.forward || keys.backward) {
+    camera.getWorldDirection(direction)
+    direction.y = 0 // Keep movement horizontal
+    direction.normalize()
+
+    if (keys.forward) {
+      horizontalMovement.add(direction.multiplyScalar(moveSpeed))
+    }
+    if (keys.backward) {
+      horizontalMovement.add(direction.multiplyScalar(-moveSpeed))
+    }
+  }
+
+  // Left/right movement (strafe)
+  if (keys.left || keys.right) {
+    camera.getWorldDirection(direction)
+    right.crossVectors(direction, camera.up).normalize()
+
+    if (keys.left) {
+      horizontalMovement.add(right.multiplyScalar(-moveSpeed))
+    }
+    if (keys.right) {
+      horizontalMovement.add(right.multiplyScalar(moveSpeed))
+    }
+  }
+
+  // Test horizontal movement
+  const newPosition = camera.position.clone()
+  newPosition.add(horizontalMovement)
+
+  // Only apply horizontal movement if it doesn't cause collision
+  if (!checkCollision(newPosition, false)) {
+    camera.position.x = newPosition.x
+    camera.position.z = newPosition.z
+  }
+
+  //Jumping
+  if (keys.jump && isOnGround && canJump) {
+    velocity.y = jumpStrength
+    isOnGround = false
+    canJump = false
+  }
+
+  //Reset jump when key is released
+  if (!keys.jump) {
+    canJump = true
+  }
+
+  // Apply gravity
+  velocity.y += gravity
+
+  // Limit fall speed
+  if (velocity.y < maxFallSpeed) {
+    velocity.y = maxFallSpeed
+  }
+
+  // Apply vertical movement
+  const newY = camera.position.y + velocity.y
+  const testPosition = camera.position.clone()
+  testPosition.y = newY
+
+  // Ground collision detection
+  const groundHeight = getGroundHeight(camera.position.x, camera.position.z)
+  const characterBottom = newY - characterHeight
+
+  if (characterBottom <= groundHeight) {
+    // Character is on or below ground
+    camera.position.y = groundHeight + characterHeight
+    velocity.y = 0
+    isOnGround = true
+  } else {
+    // Character is in the air
+    camera.position.y = newY
+    isOnGround = false
+  }
+
+  // Keep camera within world bounds horizontally
+  camera.position.x = Math.max(1, Math.min(dimensions - 1, camera.position.x))
+  camera.position.z = Math.max(1, Math.min(dimensions - 1, camera.position.z))
+
+  // Prevent falling through the world
+  if (camera.position.y < characterHeight) {
+    camera.position.y = characterHeight
+    velocity.y = 0
+    isOnGround = true
+  }
+}
 
 //Adding lights
 const color = 0xffffff
@@ -38,13 +293,14 @@ light.position.set(lightPosition, 128, lightPosition)
 light.target.position.set(lightPosition - 40, 0, lightPosition - 40)
 scene.add(light)
 
-const helper = new THREE.DirectionalLightHelper(light)
-scene.add(helper)
+// Add ambient light for better visibility
+const ambientLight = new THREE.AmbientLight(0x404040, 0.3)
+scene.add(ambientLight)
 
 //Making the background of the world clear
-renderer.setClearColor(0xfffff, 0)
+renderer.setClearColor(0x87ceeb, 1) // Sky blue background
 
-//Storing the box geometry in a varaible as well as different messhes for different types of blocks
+//Storing the box geometry in a variable as well as different meshes for different types of blocks
 const geometry = new THREE.BoxGeometry(1, 1, 1)
 const grass = new THREE.MeshStandardMaterial({ color: 'green' })
 const stone = new THREE.MeshStandardMaterial({ color: 'grey' })
@@ -94,7 +350,7 @@ noiseMap.forEach((row, z) => {
   })
 })
 
-// Count voxels for each material type
+// Count VISIBLE voxels for each material type (with culling optimization)
 let stoneCubes = 0
 let dirtCubes = 0
 let grassCubes = 0
@@ -124,7 +380,7 @@ let stoneIndex = 0
 let dirtIndex = 0
 let grassIndex = 0
 
-// Place voxels in the world
+// Place ONLY VISIBLE voxels in the world (with culling optimization)
 for (let x = 0; x < dimensions; x++) {
   for (let y = 0; y < worldHeight; y++) {
     for (let z = 0; z < dimensions; z++) {
@@ -150,38 +406,6 @@ for (let x = 0; x < dimensions; x++) {
   }
 }
 
-// Optional: Optimize by only rendering visible faces (basic culling)
-function isVoxelVisible(x, y, z, voxelGrid) {
-  const voxelType = voxelGrid[x][y][z]
-  if (voxelType === 0) return false // Air voxel
-
-  // Check if any adjacent voxel is air
-  const neighbors = [
-    [x + 1, y, z],
-    [x - 1, y, z], // X axis
-    [x, y + 1, z],
-    [x, y - 1, z], // Y axis
-    [x, y, z + 1],
-    [x, y, z - 1], // Z axis
-  ]
-
-  for (const [nx, ny, nz] of neighbors) {
-    if (
-      nx < 0 ||
-      nx >= dimensions ||
-      ny < 0 ||
-      ny >= worldHeight ||
-      nz < 0 ||
-      nz >= dimensions ||
-      voxelGrid[nx][ny][nz] === 0
-    ) {
-      return true // Has at least one air neighbor
-    }
-  }
-
-  return false // Completely surrounded
-}
-
 // Update instance matrices
 stoneInstancedMesh.instanceMatrix.needsUpdate = true
 dirtInstancedMesh.instanceMatrix.needsUpdate = true
@@ -194,14 +418,12 @@ scene.add(stoneInstancedMesh, dirtInstancedMesh, grassInstancedMesh)
 const raycaster = new THREE.Raycaster()
 const mouse = new THREE.Vector2()
 
-// Mouse event handler
-function onMouseClick(event) {
-  // Calculate mouse position in normalized device coordinates
-  mouse.x = (event.clientX / window.innerWidth) * 2 - 1
-  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1
+// Mouse click for voxel destruction (only works when pointer is locked)
+function onMouseClick(event: any) {
+  if (document.pointerLockElement !== canvas) return
 
-  // Cast ray from camera through mouse position
-  raycaster.setFromCamera(mouse, camera)
+  // Cast ray from camera center (crosshair)
+  raycaster.setFromCamera(new THREE.Vector2(0, 0), camera)
 
   // Check intersections with all instanced meshes
   const intersects = []
@@ -230,134 +452,15 @@ function onMouseClick(event) {
     const voxelZ = Math.floor(worldPos.z / voxelSize)
 
     // Remove the voxel
-    removeVoxelAndUpdate(voxelX, voxelY, voxelZ)
+    removeVoxelOptimized(voxelX, voxelY, voxelZ)
   }
 }
 
-// Add event listener
+// Add event listener for voxel interaction
 window.addEventListener('click', onMouseClick, false)
 
-// Function to remove voxel and update meshes
-function removeVoxelAndUpdate(x, y, z) {
-  // Check if coordinates are valid
-  if (
-    x < 0 ||
-    x >= dimensions ||
-    y < 0 ||
-    y >= worldHeight ||
-    z < 0 ||
-    z >= dimensions
-  ) {
-    return
-  }
-
-  // Remove voxel from grid
-  const oldVoxelType = voxelGrid[x][y][z]
-  voxelGrid[x][y][z] = 0 // Set to air
-
-  if (oldVoxelType === 0) return // Was already air
-
-  // Rebuild the affected instanced mesh
-  rebuildInstancedMeshes()
-}
-
-// Function to rebuild all instanced meshes (can be optimized)
-function rebuildInstancedMeshes() {
-  // Remove old meshes from scene
-  scene.remove(stoneInstancedMesh, dirtInstancedMesh, grassInstancedMesh)
-
-  // Count voxels for each material type
-  let stoneCubes = 0
-  let dirtCubes = 0
-  let grassCubes = 0
-
-  for (let x = 0; x < dimensions; x++) {
-    for (let y = 0; y < worldHeight; y++) {
-      for (let z = 0; z < dimensions; z++) {
-        const voxelType = voxelGrid[x][y][z]
-        if (voxelType === 1) stoneCubes++
-        else if (voxelType === 2) dirtCubes++
-        else if (voxelType === 3) grassCubes++
-      }
-    }
-  }
-
-  // Create new instanced meshes
-  const newStoneInstancedMesh = new THREE.InstancedMesh(
-    geometry,
-    stone,
-    stoneCubes
-  )
-  const newDirtInstancedMesh = new THREE.InstancedMesh(
-    geometry,
-    dirt,
-    dirtCubes
-  )
-  const newGrassInstancedMesh = new THREE.InstancedMesh(
-    geometry,
-    grass,
-    grassCubes
-  )
-
-  // Position matrices
-  const stoneMatrix = new THREE.Matrix4()
-  const dirtMatrix = new THREE.Matrix4()
-  const grassMatrix = new THREE.Matrix4()
-
-  let stoneIndex = 0
-  let dirtIndex = 0
-  let grassIndex = 0
-
-  // Place remaining voxels
-  for (let x = 0; x < dimensions; x++) {
-    for (let y = 0; y < worldHeight; y++) {
-      for (let z = 0; z < dimensions; z++) {
-        const voxelType = voxelGrid[x][y][z]
-
-        if (voxelType === 1) {
-          // Stone
-          stoneMatrix.setPosition(x * voxelSize, y * voxelSize, z * voxelSize)
-          newStoneInstancedMesh.setMatrixAt(stoneIndex, stoneMatrix)
-          stoneIndex++
-        } else if (voxelType === 2) {
-          // Dirt
-          dirtMatrix.setPosition(x * voxelSize, y * voxelSize, z * voxelSize)
-          newDirtInstancedMesh.setMatrixAt(dirtIndex, dirtMatrix)
-          dirtIndex++
-        } else if (voxelType === 3) {
-          // Grass
-          grassMatrix.setPosition(x * voxelSize, y * voxelSize, z * voxelSize)
-          newGrassInstancedMesh.setMatrixAt(grassIndex, grassMatrix)
-          grassIndex++
-        }
-      }
-    }
-  }
-
-  // Update matrices
-  newStoneInstancedMesh.instanceMatrix.needsUpdate = true
-  newDirtInstancedMesh.instanceMatrix.needsUpdate = true
-  newGrassInstancedMesh.instanceMatrix.needsUpdate = true
-
-  // Update global references
-  stoneInstancedMesh = newStoneInstancedMesh
-  dirtInstancedMesh = newDirtInstancedMesh
-  grassInstancedMesh = newGrassInstancedMesh
-
-  // Add new meshes to scene
-  scene.add(stoneInstancedMesh, dirtInstancedMesh, grassInstancedMesh)
-}
-
-// Animation loop
-function animate() {
-  renderer.render(scene, camera)
-}
-
-renderer.setAnimationLoop(animate)
-
-// More optimized approach - hide voxels instead of rebuilding
-function removeVoxelOptimized(x, y, z) {
-  // Check if coordinates are valid
+// Optimized voxel removal
+function removeVoxelOptimized(x: number, y: number, z: number) {
   if (
     x < 0 ||
     x >= dimensions ||
@@ -415,96 +518,64 @@ function removeVoxelOptimized(x, y, z) {
   }
 }
 
-// Alternative click handler that uses the optimized approach
-function onMouseClickOptimized(event) {
-  // Calculate mouse position in normalized device coordinates
-  mouse.x = (event.clientX / window.innerWidth) * 2 - 1
-  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1
+// Add crosshair for aiming
+function createCrosshair() {
+  const crosshairSize = 20
+  const crosshairThickness = 2
 
-  // Cast ray from camera through mouse position
-  raycaster.setFromCamera(mouse, camera)
+  const crosshairDiv = document.createElement('div')
+  crosshairDiv.style.position = 'fixed'
+  crosshairDiv.style.top = '50%'
+  crosshairDiv.style.left = '50%'
+  crosshairDiv.style.width = crosshairSize + 'px'
+  crosshairDiv.style.height = crosshairSize + 'px'
+  crosshairDiv.style.marginTop = -(crosshairSize / 2) + 'px'
+  crosshairDiv.style.marginLeft = -(crosshairSize / 2) + 'px'
+  crosshairDiv.style.pointerEvents = 'none'
+  crosshairDiv.style.zIndex = '1000'
 
-  // Check intersections with all instanced meshes
-  const intersects = []
+  // Horizontal line
+  const horizontal = document.createElement('div')
+  horizontal.style.position = 'absolute'
+  horizontal.style.top = '50%'
+  horizontal.style.left = '0'
+  horizontal.style.width = '100%'
+  horizontal.style.height = crosshairThickness + 'px'
+  horizontal.style.backgroundColor = 'white'
+  horizontal.style.marginTop = -(crosshairThickness / 2) + 'px'
 
-  // Test against all voxel meshes
-  const stoneIntersects = raycaster.intersectObject(stoneInstancedMesh)
-  intersects.push(...stoneIntersects.map((hit) => ({ ...hit, voxelType: 1 })))
+  // Vertical line
+  const vertical = document.createElement('div')
+  vertical.style.position = 'absolute'
+  vertical.style.left = '50%'
+  vertical.style.top = '0'
+  vertical.style.width = crosshairThickness + 'px'
+  vertical.style.height = '100%'
+  vertical.style.backgroundColor = 'white'
+  vertical.style.marginLeft = -(crosshairThickness / 2) + 'px'
 
-  const dirtIntersects = raycaster.intersectObject(dirtInstancedMesh)
-  intersects.push(...dirtIntersects.map((hit) => ({ ...hit, voxelType: 2 })))
-
-  const grassIntersects = raycaster.intersectObject(grassInstancedMesh)
-  intersects.push(...grassIntersects.map((hit) => ({ ...hit, voxelType: 3 })))
-
-  if (intersects.length > 0) {
-    // Sort by distance to get the closest voxel
-    intersects.sort((a, b) => a.distance - b.distance)
-    const closestHit = intersects[0]
-
-    // Calculate voxel coordinates from world position
-    const worldPos = closestHit.point
-    const voxelX = Math.floor(worldPos.x / voxelSize)
-    const voxelY = Math.floor(worldPos.y / voxelSize)
-    const voxelZ = Math.floor(worldPos.z / voxelSize)
-
-    // Use optimized removal (comment out the line below and uncomment the other for full rebuild)
-    removeVoxelOptimized(voxelX, voxelY, voxelZ)
-    // removeVoxelAndUpdate(voxelX, voxelY, voxelZ) // Full rebuild approach
-  }
+  crosshairDiv.appendChild(horizontal)
+  crosshairDiv.appendChild(vertical)
+  document.body.appendChild(crosshairDiv)
 }
 
-// Switch between optimized and full rebuild by changing the event listener
-// window.addEventListener('click', onMouseClick, false) // Full rebuild
-window.addEventListener('click', onMouseClickOptimized, false) // Optimized
+createCrosshair()
 
-// Additional helper: Add voxel back (for building)
-function addVoxelAt(x, y, z, voxelType) {
-  if (
-    x < 0 ||
-    x >= dimensions ||
-    y < 0 ||
-    y >= worldHeight ||
-    z < 0 ||
-    z >= dimensions
-  ) {
-    return
-  }
-
-  if (voxelGrid[x][y][z] === 0) {
-    // Only add if space is empty
-    voxelGrid[x][y][z] = voxelType
-    rebuildInstancedMeshes() // Would need optimization for this too
-  }
+// Position the camera at the correct height when the world loads
+function initializeCharacterPosition() {
+  const groundHeight = getGroundHeight(camera.position.x, camera.position.z)
+  camera.position.y = groundHeight + characterHeight
+  velocity.y = 0
+  isOnGround = true
 }
 
-// Right-click to add voxels (example)
-function onMouseRightClick(event) {
-  event.preventDefault()
+// Initialize character position after world generation
+initializeCharacterPosition()
 
-  mouse.x = (event.clientX / window.innerWidth) * 2 - 1
-  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1
-
-  raycaster.setFromCamera(mouse, camera)
-
-  // Cast ray and find where to place new voxel
-  const intersects = raycaster.intersectObjects([
-    stoneInstancedMesh,
-    dirtInstancedMesh,
-    grassInstancedMesh,
-  ])
-
-  if (intersects.length > 0) {
-    const hit = intersects[0]
-    const normal = hit.face.normal.clone()
-    const newPos = hit.point.clone().add(normal.multiplyScalar(0.5))
-
-    const voxelX = Math.floor(newPos.x / voxelSize)
-    const voxelY = Math.floor(newPos.y / voxelSize)
-    const voxelZ = Math.floor(newPos.z / voxelSize)
-
-    addVoxelAt(voxelX, voxelY, voxelZ, 1) // Add stone voxel
-  }
+// Animation loop
+function animate() {
+  updateCamera()
+  renderer.render(scene, camera)
 }
 
-window.addEventListener('contextmenu', onMouseRightClick, false)
+renderer.setAnimationLoop(animate)
