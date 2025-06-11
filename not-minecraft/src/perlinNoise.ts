@@ -9,16 +9,13 @@ class PerlinNoise {
   }
 
   private generatePermutation(): void {
-    // Initialize arrays
     this.permutation = new Array(256)
     this.p = new Array(512)
 
-    // Generate random permutation table
     for (let i = 0; i < 256; i++) {
       this.permutation[i] = Math.floor(Math.random() * 256)
     }
 
-    // Duplicate the permutation table
     for (let i = 0; i < 512; i++) {
       this.p[i] = this.permutation[i & 255]
     }
